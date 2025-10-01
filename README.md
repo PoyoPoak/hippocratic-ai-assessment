@@ -34,7 +34,7 @@ usability, and safety. Of which include the following:
 - Remove Stop Words, Normalize Input, Word Stemming/Lemmatization:  
    Would improve prompt efficiency and reduce token usage.
 
-**How to Run:**
+## How to Run
 1. Ensure you have Python 3.12.8 (version used during development)
 2. Setup a virtual environment and install dependencies (done using bash terminal)
     python -m venv venv
@@ -43,17 +43,8 @@ usability, and safety. Of which include the following:
 3. Add your OpenAI API key to a .env file following the .env-template
 4. Run main.py
     python ./main.py
-    
-**Resources Used:**
--Miro: Diagramming the system architecture and flow.
--Copilot: For code review, suggestions, documentation writing, issue spotting, quick prototyping, test generation, and boilerplate. 
--OpenAI Docs: For API reference and examples.
--Google: For researching best practices, new design patterns, pitfalls, safety considerations, and other relevant information.
--Old Projects: Having built LLM implementations before, I was able to reuse some code patterns and prompt structures.
--Old AI Class Notes: Drew upon old notes for Actor and Critic design patterns.
--Old Information Retrieval Class Notes: Drew upon old notes for input handling and prompt improvement strategies.
 
-**Flow Stages:**
+## High Level Flow
 1. Input cleaning & validation
 2. Prompt improvement
 3. Outline generation
@@ -61,6 +52,17 @@ usability, and safety. Of which include the following:
 5. Critique
 6. Revision
 7. Final safety pass
+
+<img width="657" height="1520" alt="image" src="https://github.com/PoyoPoak/hippocratic-ai-assessment/blob/main/naive-design-diagram-v1.png?raw=true" />
+    
+## Resources Used
+- Miro: Diagramming the system architecture and flow.
+- Copilot: For code review, suggestions, documentation writing, issue spotting, quick prototyping, test generation, and boilerplate. 
+- OpenAI Docs: For API reference and examples.
+- Google: For researching best practices, new design patterns, pitfalls, safety considerations, and other relevant information.
+- Old Projects: Having built LLM implementations before, I was able to reuse some code patterns and prompt structures.
+- Old AI Class Notes: Drew upon old notes for Actor and Critic design patterns.
+- Old Information Retrieval Class Notes: Drew upon old notes for input handling and prompt improvement strategies.
 
 # Hippocratic AI Coding Assignment
 Welcome to the [Hippocratic AI](https://www.hippocraticai.com) coding assignment
