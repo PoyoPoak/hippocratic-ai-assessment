@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-MODEL_NAME = "gpt-3.5-turbo"  # Assignment requirement: do not change
-
 TEMPERATURES = {
     "gate": 0.0,
     "improve": 0.5,
@@ -24,16 +22,9 @@ MAX_TOKENS = {
     "safety_sanitize": 3000, # (Unused) placeholder
 }
 
-# Heuristic Base
 MIN_INPUT_CHARS = 5
 MAX_INPUT_CHARS = 500
 
-# OpenAI API retry policy
-RETRY_MAX = 3
-BACKOFF_BASE_SECONDS = 1.0
-JITTER = True
-
-# Inconclusive, but for demonstrative purposes
 INJECTION_PATTERNS = [
     "ignore previous instructions",
     "disregard previous",
@@ -42,7 +33,6 @@ INJECTION_PATTERNS = [
     "forget the rules"
 ]
 
-# Final output blocklist (simple substring scan; case-insensitive)
 FINAL_OUTPUT_BLOCKLIST = [
     "blood",  
     "knife",  
@@ -122,26 +112,3 @@ PROMPTS: dict[str, str] = {
         "ORIGINAL:<ORIGINAL>{story}</ORIGINAL>\nREASONS:<REASONS>{reasons}</REASONS>"
     ),
 }
-
-# Utility to build prompts
-def build_prompt(stage: str, **kwargs) -> str:
-    """Render a prompt template for the given stage with provided variables.
-
-    Args:
-        stage: Template key (must exist in PROMPTS).
-        **kwargs: Named variables referenced by the template's placeholders.
-
-    Returns:
-        Interpolated prompt string ready for model submission.
-
-    Raises:
-        ValueError: If the stage is unknown or a required placeholder variable is missing.
-    """
-    template = PROMPTS.get(stage)
-    if not template:
-        raise ValueError(f"Unknown prompt stage: {stage}")
-    try:
-        return template.format(**kwargs)
-    except KeyError as e:
-        missing = e.args[0]
-        raise ValueError(f"Missing template variable '{missing}' for stage '{stage}'") from e
