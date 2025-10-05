@@ -4,6 +4,7 @@ import openai
 import dotenv
 from typing import Optional
 import config
+import scrubadub
 
 
 """
@@ -67,10 +68,10 @@ class InputHandler:
         # LLM semantic validation (gate) - used to handle nuanced cases with LLM as a loose reasoning filter
         gate_prompt = build_prompt("gate", user_request=prompt)
         try:
-            response = call_model(
+            response = openai_client.generate(
                 gate_prompt,
-                    temperature=config.TEMPERATURES["gate"],
-                    max_tokens=config.MAX_TOKENS["gate"],
+                max_tokens=config.MAX_TOKENS["gate"],
+                temperature=config.TEMPERATURES["gate"],
             )
         except Exception as e:  
             self.errors.append(f"Validation service error: {e}")
@@ -100,10 +101,10 @@ class InputHandler:
     def _improve_prompt(self, prompt: str) -> str:
         """Prompt LLM with prompt to improve clarity of request while retaining original intent."""
         tmpl = build_prompt("improve", candidate=prompt)
-        return call_model(
+        return openai_client.generate(
             tmpl,
-            temperature=config.TEMPERATURES["improve"],
             max_tokens=config.MAX_TOKENS["improve"],
+            temperature=config.TEMPERATURES["improve"],
         )
     
     def get_prompt(self) -> str | None:
@@ -130,10 +131,10 @@ class StoryGenerator:
         # Build the prompt for the given stage and call the model
         prompt = build_prompt(stage, **kwargs)
         
-        return call_model(
+        return openai_client.generate(
             prompt,
-            temperature=config.TEMPERATURES[stage],
             max_tokens=config.MAX_TOKENS[stage],
+            temperature=config.TEMPERATURES[stage],
         )
 
     def create_story(self, user_input: str) -> str:
@@ -150,53 +151,50 @@ class StoryGenerator:
             draft = self._run_stage("draft", outline=outline)
             critique = self._run_stage("critique", draft=draft)
             revised = self._run_stage("revise", draft=draft, critique=critique)
-            safe_story = final_safety_pass(revised) # TODO convert final safety pass into a generic safety function
-            return safe_story
+            # safe_story = safety_pass(revised) # TODO convert final safety pass into a generic safety function
+            return revised
         except Exception as e:
             return f"Story generation failed: {e}"
 
 
-def final_safety_pass(story: str) -> str:
-    """Perform a final safety audit of the story.
-
-    Process:
-        1. Blocklist substring scan (case-insensitive).
-        2. LLM safety audit (`safety_audit`) returning one token: SAFE or UNSAFE.
-        3. If any unsafe signal: return a generic unsafe message (no rewrite, no reasons).
-
-    Args:
-        story: Revised story text.
-
-    Returns:
-        Original story if safe; otherwise a short unsafe notice.
-    """
-    lowered = story.lower()
+# def safety_pass(text: str) -> str:
+#     """Performs a safety check on a given piece of text"""
+#     lowered = text.lower()
     
-    # Blocklist scan
-    block_hit = any(word in lowered for word in config.FINAL_OUTPUT_BLOCKLIST)
+#     # Length check
+#     # TODO Ensure input is at least config.MIN_INPUT_CHARS and at most config.MAX_INPUT_CHARS
+    
+#     # Scrub any personal identifiable information 
+#     # TODO Integrate scrubadub or similar library to remove PII
 
-    # LLM audit
-    if not block_hit:
-        try:
-            audit_prompt = build_prompt("safety_audit", story=story)
-            audit_raw = call_model(
-                audit_prompt,
-                temperature=config.TEMPERATURES["safety_audit"],
-                max_tokens=config.MAX_TOKENS["safety_audit"],
-            ).strip().upper()
-            if audit_raw.startswith("UNSAFE"):
-                block_hit = True
-            elif audit_raw.startswith("SAFE"):
-                pass 
-            else:
-                # Ambiguous audit; allow (fail open) since no blocklist hit
-                return story
-        except Exception:
-            return story if not block_hit else "UNSAFE STORY BLOCKED"
+#     # Moderation API check
+#     # TODO Implement call to OpenAI moderation endpoint and block if flagged
+    
+#     # Blocklist scan
+#     block_hit = any(word in lowered for word in config.FINAL_OUTPUT_BLOCKLIST)
 
-    if block_hit:
-        return "UNSAFE STORY BLOCKED"
-    return story
+#     # LLM audit
+#     if not block_hit:
+#         try:
+#             audit_prompt = build_prompt("safety_audit", story=text)
+#             audit_raw = openai_client.generate(
+#                 audit_prompt,
+#                 max_tokens=config.MAX_TOKENS["safety_audit"],
+#                 temperature=config.TEMPERATURES["safety_audit"],
+#             ).strip().upper()
+#             if audit_raw.startswith("UNSAFE"):
+#                 block_hit = True
+#             elif audit_raw.startswith("SAFE"):
+#                 pass 
+#             else:
+#                 # Ambiguous audit; allow (fail open) since no blocklist hit
+#                 return text
+#         except Exception:
+#             return text if not block_hit else "UNSAFE STORY BLOCKED"
+
+#     if block_hit:
+#         return "UNSAFE STORY BLOCKED"
+#     return text
 
 
 def build_prompt(stage: str, **kwargs) -> str:
@@ -222,79 +220,140 @@ def build_prompt(stage: str, **kwargs) -> str:
         raise ValueError(f"Missing template variable '{missing}' for stage '{stage}'") from e
 
 
-def call_model(prompt: str, max_tokens: Optional[int] = 3000, temperature: Optional[float] = 0.7) -> str:
-    """Invoke the OpenAI chat completion API with retries and validation."""
-    if not os.getenv("OPENAI_API_KEY"):
-        raise RuntimeError("OPENAI_API_KEY environment variable not set")
-    
-    llm = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    max_retries = 3
-    backoff_base = 1
+class OpenAI:
+    """Client class wrapper handling API usage with unified retry logic."""
 
-    last_error: Exception | None = None
-    for attempt in range(1, max_retries + 1):
-        try:
-            resp = llm.chat.completions.create(
-                model="gpt-3.5-turbo",  # DO NOT CHANGE THE MODEL
-                messages=[{"role": "user", "content": prompt}],
-                stream=False,
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
+    def __init__(self, api_key: Optional[str] = None):
+        key = api_key or os.getenv("OPENAI_API_KEY")
+        if not key:
+            raise RuntimeError("OPENAI_API_KEY environment variable not set")
+        self._client = openai.OpenAI(api_key=key)
+        self._max_retries = 3
+        self._backoff_base = 1
 
-            # Defensive checks
-            if not resp or not getattr(resp, "choices", None):
-                raise ValueError("Empty or malformed response from model")
-            choice = resp.choices[0]
-            content = getattr(getattr(choice, "message", None), "content", None)
-            if not content:
-                raise ValueError("No content field in model response")
-            return content  # type: ignore
+    def _sleep(self, attempt: int) -> None:
+        """Sleep with exponential backoff and jitter."""
+        import time
+        sleep_time = self._backoff_base * attempt
+        sleep_time *= (0.9 + random.random() * 0.2)
+        time.sleep(sleep_time)
 
-        except openai.RateLimitError as e:  # type: ignore[attr-defined]
-            last_error = e
-            if attempt == max_retries:
-                raise
-        except openai.APIConnectionError as e:  # type: ignore[attr-defined]
-            last_error = e
-            if attempt == max_retries:
-                raise
-        except openai.APITimeoutError as e:  # type: ignore[attr-defined]
-            last_error = e
-            if attempt == max_retries:
-                raise
-        except openai.AuthenticationError as e:  # type: ignore[attr-defined]
-            raise RuntimeError(
-                "Authentication failed (401). Check API key, organization membership, or regenerate key."
-            ) from e
-        except openai.PermissionDeniedError as e:  # type: ignore[attr-defined]
-            raise RuntimeError(
-                "Permission denied (403). Possible unsupported region or insufficient privileges."
-            ) from e
-        except openai.BadRequestError as e:  # type: ignore[attr-defined]
-            raise RuntimeError(
-                f"Bad request was made to OpenAI API. Verify prompt size/format. Details: {e}"
-            ) from e
-        except openai.InternalServerError as e:  # type: ignore[attr-defined]
-            last_error = e
-            if attempt == max_retries:
-                raise
-        except Exception as e:  # Catch-all for unexpected issues
-            last_error = e
-            if attempt == max_retries:
-                raise
+    def _handle_errors(self, attempt: int, e: Exception) -> bool:
+        """
+        Handles errors from OpenAI API calls and determines if a retry should be attempted.
 
-        # Retry for transient errors that may clear up soon, jittered backoff
-        if attempt < max_retries:
-            import time
-            sleep_time = backoff_base * attempt
-            sleep_time *= (0.9 + random.random() * 0.2) 
-            time.sleep(sleep_time)
+        Args:
+            attempt (int): Current attempt number (1-based).
+            e (Exception): The exception encountered during the API call.
 
-    # Should not reach here; loop either returns or raises.
-    if last_error:
-        raise last_error
-    raise RuntimeError("Unknown error calling model")
+        Raises:
+            RuntimeError: Authentication failed (401).
+            RuntimeError: Permission denied (403).
+            RuntimeError: Bad request to OpenAI API.
+
+        Returns:
+            bool: True if the operation should be submitted again, False otherwise.
+        """
+        # Returns True if should retry, otherwise raises.
+        retryable = (
+            openai.RateLimitError,  # type: ignore[attr-defined]
+            openai.APIConnectionError,  # type: ignore[attr-defined]
+            openai.APITimeoutError,  # type: ignore[attr-defined]
+            openai.InternalServerError,  # type: ignore[attr-defined]
+        )
+        
+        # Handle known non-retryable errors
+        if isinstance(e, openai.AuthenticationError):  # type: ignore[attr-defined]
+            raise RuntimeError("Authentication failed (401). Check API key.") from e
+        if isinstance(e, openai.PermissionDeniedError):  # type: ignore[attr-defined]
+            raise RuntimeError("Permission denied (403). Check account/region permissions.") from e
+        if isinstance(e, openai.BadRequestError):  # type: ignore[attr-defined]
+            raise RuntimeError(f"Bad request to OpenAI API: {e}") from e
+        if isinstance(e, retryable):
+            return attempt < self._max_retries
+        
+        # Unknown error: retry only if not final attempt
+        return attempt < self._max_retries
+
+    def _moderate(self, text: str) -> bool:
+        """Moderate input text using OpenAI's moderation endpoint."""
+        # Track last error for final raise
+        last_error: Exception | None = None
+        
+        for attempt in range(1, self._max_retries + 1):
+            try:
+                resp = self._client.moderations.create(
+                    model="omni-moderation-latest",
+                    input=text,
+                )
+                
+                # Expect resp.results list with flagged bools 
+                results = getattr(resp, "results", [])
+                if not results:
+                    raise ValueError("Empty moderation response")
+
+                # Check if any of the results are flagged, if so reject input
+                flagged = any(getattr(r, "flagged", False) for r in results)
+                if flagged:
+                    raise ValueError("Input rejected by moderation")
+                return
+            
+            # Handle and possibly retry on errors
+            except Exception as e:  
+                last_error = e
+                should_retry = self._handle_errors(attempt, e)
+                if not should_retry:
+                    raise
+                self._sleep(attempt)
+                
+        if last_error:
+            raise last_error
+        
+        raise RuntimeError("Unknown moderation error")
+
+    def generate(self, prompt: str, *, max_tokens: int = 3000, temperature: float = 0.7) -> str:
+        """Generate a response from the model."""
+        
+        # Track last error for final raise
+        last_error: Exception | None = None 
+        
+        for attempt in range(1, self._max_retries + 1):
+            try:
+                resp = self._client.chat.completions.create(
+                    model="gpt-3.5-turbo",  # DO NOT CHANGE THE MODEL
+                    messages=[{"role": "user", "content": prompt}],
+                    stream=False,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                )
+                
+                if not resp or not getattr(resp, "choices", None):
+                    raise ValueError("Empty or malformed response from model")
+                
+                choice = resp.choices[0]
+                content = getattr(getattr(choice, "message", None), "content", None)
+                
+                if not content:
+                    raise ValueError("No content field in model response")
+                return content  # type: ignore
+            
+            # Handle and possibly retry on errors
+            except Exception as e:
+                last_error = e
+                should_retry = self._handle_errors(attempt, e)
+                if not should_retry:
+                    raise
+                self._sleep(attempt)
+
+        # Raise last error if all attempts failed
+        if last_error:
+            raise last_error
+        
+        raise RuntimeError("Unknown generation error")
+
+
+# Singleton client instance used by helper functions/classes above
+openai_client = OpenAI()
 
 
 def main():
