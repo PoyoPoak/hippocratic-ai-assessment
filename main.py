@@ -9,6 +9,43 @@ from dataclasses import dataclass
 
 """
 Before submitting the assignment, describe here what you would build next with ~2 more hours. (Documented for reviewers.)
+I can tell by the nature of this assignment that it is meant to test system design and engineering skills over 
+pure coding ability. Especially the ability to forsee potential pitfalls and edge cases in complex AI systems 
+where user input, and AI model outputs, can be unpredictable and adversarial. 
+
+I feel there are still many improvements I'd like to add and improve system robustness, usability, and safety. 
+Of which include the following:
+
+- Interactive Refinement Loop:  
+   Allow users to be a critic in a feedback loop and tweak stories to their liking using function calling and 
+   modular design.
+- Debug Logging and Metrics:
+   Would be good for future development as complexity increases. Good for also determining bottlenecks from 
+   API and elsewhere
+- Unit Tests:  
+   Rather than using ad hoc tests or manually testing, a structured test set would make it easier to ensure 
+   consistency and quickly test edge cases.
+- Critique Rubrics:  
+   Improve the consistency of revisions and critiques and reduce variability in quality (resulting from 
+   model temperature).
+- Token Cost Logging:  
+   Gather cost metrics of the system. Especially being that this uses multiple LLM calls.
+- LLM Function Calling:  
+   For clean implementation of modular functions in a more complex system where the user has more control.
+- Multilingual Support:  
+   Historically, this was one of the original purposes of LLMs and it would be nice to incorporate that here.
+- Additional Guardrails, Anti-Injection, Malicious Input Detection, etc:  
+   There's always room for more safety and guardrails as there's no perfect solution.
+
+How to Run
+1. Ensure you have Python 3.12.8 (version used during development)
+2. Setup a virtual environment and install dependencies (done using bash terminal)
+    python -m venv venv
+    source venv/Scripts/activate  
+    pip install -r requirements.txt
+3. Add your OpenAI API key to a .env file following the .env-template
+4. Run main.py
+    python ./main.py
 """
 
 dotenv.load_dotenv()
