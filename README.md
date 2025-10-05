@@ -1,59 +1,46 @@
 # Personal Notes
-I can tell by the nature of this assignment that it is meant to test system 
-design and engineering skills over pure coding ability. Especially the ability
-to forsee potential pitfalls and edge cases in complex AI systems where user
-input, and AI model outputs, can be unpredictable and adversarial. 
+I can tell by the nature of this assignment that it is meant to test system design and engineering skills over pure coding ability. Especially the ability to forsee potential pitfalls and edge cases in complex AI systems where user input, and AI model outputs, can be unpredictable and adversarial. 
 
-As per the assignment instructions, I've so far spent 3 hours on this project
-from researching, designing, coding, and testing. However, I feel there are 
-still many improvements I'd like to add and improve system robustness, 
-usability, and safety. Of which include the following: 
+I feel there are still many improvements I'd like to add and improve system robustness, usability, and safety. Of which include the following:
 
-- Fasttext Package:  
-   Better text classification and input handling to prevent inappropriate content.
-- Interactive Refinement Loop:  
-   Allow users to be a critic in a feedback loop and tweak stories to their liking.
-- More Comprehensive Anti-Injection/Malicious Input Detection:  
-   Current injection patterns are very basic and inconclusive.
-- Debug Logging and Metrics:  
-   Would be good for future development as complexity increases. Good for also determining bottlenecks from API and elsewhere
-- Unit Tests:  
-   Rather than using ad hoc tests, a structured test set would make it easier to ensure consistency and quickly test edge cases.
-- Critique Rubrics:  
-   Improve the consistency of revisions and critiques and reduce variability in quality (resulting from model temperature).
-- Token Cost Logging:  
-   Gather cost metrics of the system. Especially being that this uses multiple LLM calls.
-- LLM Function Calling:  
-   For clean implementation of modular functions in a more complex system where the user has more control.
-- Multilingual Support:  
-   Historically, this was one of the original purposes of LLMs and it would be nice to incorporate that here.
-- Additional Guardrails:  
-   User input and final output could be run through a larger set of classifiers and blocklists to reduce risk.
-- Caching:  
-   Caching common requests and responses would speed up the system and reduce costs of redundant calls.
-- Remove Stop Words, Normalize Input, Word Stemming/Lemmatization:  
-   Would improve prompt efficiency and reduce token usage.
+- Interactive Refinement Loop:
+  Allow users to be a critic in a feedback loop and tweak stories to their liking using function calling and modular design.
+- Debug Logging and Metrics:
+  Would be good for future development as complexity increases. Good for also determining bottlenecks from API and elsewhere
+- Unit Tests:
+  Rather than using ad hoc tests, a structured test set would make it easier to ensure consistency and quickly test edge cases.
+- Critique Rubrics:
+  Improve the consistency of revisions and critiques and reduce variability in quality (resulting from model temperature).
+- Token Cost Logging:
+  Gather cost metrics of the system. Especially being that this uses multiple LLM calls.
+- LLM Function Calling:
+  For clean implementation of modular functions in a more complex system where the user has more control.
+- Multilingual Support:
+  Historically, this was one of the original purposes of LLMs and it would be nice to incorporate that here.
+- Additional Guardrails, Anti-Injection, Malicious Input Detection, etc:
+  There's always room for more safety and guardrails as there's no perfect solution.
 
 ## How to Run
 1. Ensure you have Python 3.12.8 (version used during development)
 2. Setup a virtual environment and install dependencies (done using bash terminal)
+    ```
     python -m venv venv
-    source venv/bin/activate  
+    source venv/Scripts/activate
     pip install -r requirements.txt
+    ```
 3. Add your OpenAI API key to a .env file following the .env-template
 4. Run main.py
-    python ./main.py
+   ```
+   python ./main.py
+   ```
 
 ## High Level Flow
-1. Input cleaning & validation
+1. Input cleaning/validation
 2. Prompt improvement
 3. Outline generation
 4. Draft generation
-5. Critique
-6. Revision
-7. Final safety pass
-
-<img width="657" height="1520" alt="image" src="https://github.com/PoyoPoak/hippocratic-ai-assessment/blob/main/naive-design-diagram-v1.png?raw=true" />
+5. Critique and revise
+6. Final safety pass
     
 ## Resources Used
 - Miro: Diagramming the system architecture and flow.
