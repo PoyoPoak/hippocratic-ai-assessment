@@ -134,18 +134,10 @@ class StoryGenerator:
             temperature=config.TEMPERATURES[stage],
         )
 
-    def create_story(self, user_input: str):
-        """Run end-to-end generation from raw user input.
-
-        Returns StoryResult-like dict to avoid direct printing side-effects.
-        """
-        handler = InputHandler(user_input)
-        if not handler.processed_input:
-            return {"success": False, "story": None, "errors": handler.errors, "unsafe": False}
-
-        processed_input = handler.processed_input
+    def create_story(self, prompt: str):
+        """Run end-to-end generation from raw user input."""
         try:
-            outline = self._run_stage("outline", idea=processed_input)
+            outline = self._run_stage("outline", idea=prompt)
             draft = self._run_stage("draft", outline=outline)
             critique = self._run_stage("critique", draft=draft)
             revised = self._run_stage("revise", draft=draft, critique=critique)
@@ -199,13 +191,16 @@ def safety_pass(text: str, run_audit: bool = True) -> str:
 
 
 def main():
-    user_input = input("What kind of story do you want to hear?\n")
-    result = StoryGenerator().create_story(user_input)
-    
-    if not result["success"]:
-        print("Sorry, something went wrong and we couldn't create your story.")
-    else:
-        print(result["story"])
+    while True:
+        user_input = input("What kind of story do you want to hear?\n")
+        handler = InputHandler(user_input)
+        if not handler.processed_input:
+            raise ValueError("Input processing failed")
+        result = StoryGenerator().create_story(handler.processed_input)
+        if not result["success"]:
+            print("Sorry, something went wrong and we couldn't create your story.")
+        else:
+            print(result["story"])
 
 
 if __name__ == "__main__":
