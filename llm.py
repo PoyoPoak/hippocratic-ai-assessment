@@ -23,7 +23,19 @@ class LLM:
         time.sleep(sleep_time)
 
     def _handle_errors(self, attempt: int, e: Exception) -> bool:
-        """Determine if we should retry based on error type and attempt count."""
+        """Determine if we should retry based on error type and attempt count.
+
+        Args:
+            attempt (int): Current attempt number.
+            e (Exception): The exception encountered during the attempt.
+            
+        Raises:
+            RuntimeError: Authentication failed (401). Check API key.
+            RuntimeError: Permission denied (403). Check account/region permissions.
+            RuntimeError: Bad request to OpenAI API.
+        Returns:
+            bool: True if the operation should be retried, False otherwise.
+        """        
         retryable = (
             openai.RateLimitError,  # type: ignore[attr-defined]
             openai.APIConnectionError,  # type: ignore[attr-defined]
@@ -45,7 +57,17 @@ class LLM:
         return attempt < self._max_retries
 
     def _moderate(self, text: str) -> None:
-        """Run moderation check; raise if flagged or on error."""
+        """Run moderation check; raise if flagged or on error.
+
+        Args:
+            text (str): Text to be moderated.
+
+        Raises:
+            ValueError: If the text is flagged by moderation.
+            ValueError: If the moderation response is empty or malformed.
+            last_error: The last exception encountered during retries.
+            RuntimeError: If an unknown error occurs during moderation.
+        """
         last_error: Exception | None = None
         
         for attempt in range(1, self._max_retries + 1):
@@ -77,12 +99,27 @@ class LLM:
         
         raise RuntimeError("Unknown moderation error")
 
-    def moderate(self, text: str) -> None:
-        """Public access to moderation"""
-        self._moderate(text)
+    def moderate(self, text: str):
+        """Public moderation method"""
+        return self._moderate(text)
 
     def generate(self, prompt: str, *, max_tokens: int = 3000, temperature: float = 0.7) -> str:
-        """Generate text completion."""
+        """Generate text completion.
+
+        Args:
+            prompt (str): Text prompt to generate completion for.
+            max_tokens (int, optional): Maximum number of tokens to generate. Defaults to 3000.
+            temperature (float, optional): Sampling temperature. Defaults to 0.7.
+
+        Raises:
+            ValueError: If the model response is empty or malformed.
+            ValueError: If no content is found in the model response.
+            last_error: The last exception encountered during retries.
+            RuntimeError: If an unknown error occurs during generation.
+
+        Returns:
+            str: Generated text completion.
+        """
         last_error: Exception | None = None
         
         for attempt in range(1, self._max_retries + 1):

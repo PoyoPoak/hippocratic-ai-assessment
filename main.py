@@ -2,7 +2,7 @@ import dotenv
 import config
 import scrubadub
 from llm import LLM
-
+from better_profanity import profanity
 
 """
 Before submitting the assignment, describe here what you would build next with ~2 more hours. (Documented for reviewers.)
@@ -19,31 +19,28 @@ class InputHandler:
 
     def __init__(self, raw_input: str):
         self.raw_input = raw_input
-        
-        # Populate after processing
         self.cleaned_input: str | None = None
         self.processed_input: str | None = None
-        
         self.errors: list[str] = []
-        
         self.min_length_chars = config.MIN_INPUT_CHARS
         self.max_length_chars = config.MAX_INPUT_CHARS
 
-        # Init processing
         if not self.raw_input or self.raw_input.strip() == "":
             self.errors.append("Input cannot be empty")
             return
-        
+
         self.cleaned_input = self._clean(self.raw_input)
-    
+
+        # Validate input (populate self.errors if any)
         if not self._validate(self.cleaned_input):
-            return 
-        
+            return
+
+        # Prompt improvement
         try:
             self.processed_input = self._improve_prompt(self.cleaned_input)
-        except Exception as e: 
-            self.errors.append(f"Prompt improvement failed: {e}")
+        except Exception as e:
             self.processed_input = self.cleaned_input
+            self.errors.append(f"Prompt improvement failed: {e}")
 
     def _clean(self, text: str) -> str:
         """Normalize whitespace and strip surrounding spaces."""
@@ -54,54 +51,41 @@ class InputHandler:
         return text.strip()
 
     def _validate(self, prompt: str) -> bool:
-        """Validate prompt length, semantic suitability, and injection safety."""
+        """Validate prompt length, semantics (gate), moderation, and injection patterns."""
+        # Basic length checks
         if len(prompt) < self.min_length_chars:
             self.errors.append("Input too short to infer story context.")
         if len(prompt) > self.max_length_chars:
             self.errors.append(f"Input exceeds maximum length of {self.max_length_chars} characters (got {len(prompt)}).")
         
-        # If there are local errors, skip LLM validation to save resources
+        # Early exit on length errors, avoid unnecessary LLM calls            
         if self.errors:
             return False
 
-        # LLM semantic validation (gate) - used to handle nuanced cases with LLM as a loose reasoning filter
-        gate_prompt = config.build_prompt("gate", user_request=prompt)
-        try:
-            response = llm.generate(
-                gate_prompt,
-                max_tokens=config.MAX_TOKENS["gate"],
-                temperature=config.TEMPERATURES["gate"],
-            )
-        except Exception as e:  
-            self.errors.append(f"Validation service error: {e}")
+        # Safety pass checking (PII scrub, blocklist, moderation, profanity, audit)
+        safety_result = safety_pass(prompt, run_audit=True)
+        if safety_result == "UNSAFE CONTENT BLOCKED":
+            self.errors.append("Input failed safety checks.")
             return False
         
-        # In case of unexpected formatting or periods added to the end
-        cleaned_resp = response.strip().upper()
-        
-        # Strict LLM gate response enforcement
-        if cleaned_resp not in {"VALID", "INVALID"}:
-            self.errors.append(f"Gate returned ambiguous response: {cleaned_resp!r}")
-            return False
-        elif cleaned_resp == "INVALID":
-            self.errors.append("Input is not suitable for a children's story.")
-            return False
+        # Optionally adopt scrubbed form produced by safety_pass
+        prompt = safety_result
+        self.cleaned_input = prompt
 
-        # Always-on injection pattern scan, not conclusive as these can come in many forms. Keeping simple for demonstrative purposes.
+        # Injection pattern scan
         lowered = prompt.lower()
         for pat in config.INJECTION_PATTERNS:
             if pat in lowered:
                 self.errors.append("Potential prompt injection pattern detected; refusing input.")
                 return False
-        
-        # Validation succeeded and no errors recorded
-        return self.errors == []
+            
+        return True
 
     def _improve_prompt(self, prompt: str) -> str:
         """Prompt LLM with prompt to improve clarity of request while retaining original intent."""
-        tmpl = config.build_prompt("improve", candidate=prompt)
+        improve_prompt = config.build_prompt("improve", candidate=prompt)
         return llm.generate(
-            tmpl,
+            improve_prompt,
             max_tokens=config.MAX_TOKENS["improve"],
             temperature=config.TEMPERATURES["improve"],
         )
@@ -171,6 +155,10 @@ def safety_pass(text: str, run_audit: bool = True) -> str:
     # Blocklist substring scan
     if any(word in text for word in config.FINAL_OUTPUT_BLOCKLIST):
         return "UNSAFE CONTENT BLOCKED"
+    
+    # Profanity check
+    if profanity.contains_profanity(text):
+        return "UNSAFE CONTENT BLOCKED"
 
     # Optional LLM audit
     if run_audit:
@@ -187,8 +175,6 @@ def safety_pass(text: str, run_audit: bool = True) -> str:
             pass
 
     return text
-
-
 
 
 def main():
