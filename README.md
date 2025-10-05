@@ -41,6 +41,8 @@ I feel there are still many improvements I'd like to add and improve system robu
 4. Draft generation
 5. Critique and revise
 6. Final safety pass
+
+<img alt="image" src="https://github.com/PoyoPoak/hippocratic-ai-assessment/blob/main/high-level-diagram.jpg?raw=true" />
     
 ## Resources Used
 - Miro: Diagramming the system architecture and flow.
