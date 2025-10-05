@@ -135,18 +135,28 @@ class StoryGenerator:
         )
 
     def create_story(self, prompt: str):
-        """Run end-to-end generation from raw user input."""
+        """Run end-to-end generation from raw user input with iterative refinement.
+
+        Outline -> Draft -> (Critique -> Revise) * REVISION_ROUNDS -> Safety
+        """
         try:
             outline = self._run_stage("outline", idea=prompt)
             draft = self._run_stage("draft", outline=outline)
-            critique = self._run_stage("critique", draft=draft)
-            revised = self._run_stage("revise", draft=draft, critique=critique)
-            final_text = safety_pass(revised)
+            current = draft
+            
+            # Revision cycle
+            rounds = getattr(config, "REVISION_ROUNDS", 1)
+            for _ in range(max(0, int(rounds))):
+                critique = self._run_stage("critique", draft=current)
+                current = self._run_stage("revise", draft=current, critique=critique)
+            
+            final_text = safety_pass(current)
             if final_text == "UNSAFE CONTENT BLOCKED":
                 return {"success": False, "story": None, "errors": ["Content blocked by safety filter"], "unsafe": True}
             return {"success": True, "story": final_text, "errors": [], "unsafe": False}
-        except Exception as e:
-            return {"success": False, "story": None, "errors": [f"Story generation failed"], "unsafe": False}
+        
+        except Exception:
+            return {"success": False, "story": None, "errors": ["Story generation failed"], "unsafe": False}
 
 
 def safety_pass(text: str, run_audit: bool = True) -> str:
