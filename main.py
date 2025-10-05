@@ -5,6 +5,7 @@ from llm import LLM
 from better_profanity import profanity
 import unicodedata
 import re
+from dataclasses import dataclass
 
 """
 Before submitting the assignment, describe here what you would build next with ~2 more hours. (Documented for reviewers.)
@@ -133,23 +134,27 @@ class StoryGenerator:
             temperature=config.TEMPERATURES[stage],
         )
 
-    def create_story(self, user_input: str) -> str:
-        """Run end-to-end generation from raw user input."""
+    def create_story(self, user_input: str):
+        """Run end-to-end generation from raw user input.
+
+        Returns StoryResult-like dict to avoid direct printing side-effects.
+        """
         handler = InputHandler(user_input)
         if not handler.processed_input:
-            return "Error processing input: " + "; ".join(handler.errors)
+            return {"success": False, "story": None, "errors": handler.errors, "unsafe": False}
 
         processed_input = handler.processed_input
-        
-        # Multi-stage generation with error handling
         try:
             outline = self._run_stage("outline", idea=processed_input)
             draft = self._run_stage("draft", outline=outline)
             critique = self._run_stage("critique", draft=draft)
             revised = self._run_stage("revise", draft=draft, critique=critique)
-            return safety_pass(revised)
+            final_text = safety_pass(revised)
+            if final_text == "UNSAFE CONTENT BLOCKED":
+                return {"success": False, "story": None, "errors": ["Content blocked by safety filter"], "unsafe": True}
+            return {"success": True, "story": final_text, "errors": [], "unsafe": False}
         except Exception as e:
-            return f"Story generation failed: {e}"
+            return {"success": False, "story": None, "errors": [f"Story generation failed"], "unsafe": False}
 
 
 def safety_pass(text: str, run_audit: bool = True) -> str:
@@ -195,8 +200,12 @@ def safety_pass(text: str, run_audit: bool = True) -> str:
 
 def main():
     user_input = input("What kind of story do you want to hear?\n")
-    story = StoryGenerator().create_story(user_input)
-    print(story)
+    result = StoryGenerator().create_story(user_input)
+    
+    if not result["success"]:
+        print("Sorry, something went wrong and we couldn't create your story.")
+    else:
+        print(result["story"])
 
 
 if __name__ == "__main__":
