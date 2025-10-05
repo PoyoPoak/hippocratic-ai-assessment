@@ -112,3 +112,24 @@ PROMPTS: dict[str, str] = {
         "ORIGINAL:<ORIGINAL>{story}</ORIGINAL>\nREASONS:<REASONS>{reasons}</REASONS>"
     ),
 }
+def build_prompt(stage: str, **kwargs) -> str:
+    """Render a prompt template for the given stage with provided variables.
+
+    Args:
+        stage: Template key (must exist in PROMPTS).
+        **kwargs: Named variables referenced by the template's placeholders.
+
+    Returns:
+        Interpolated prompt string ready for model submission.
+
+    Raises:
+        ValueError: If the stage is unknown or a required placeholder variable is missing.
+    """
+    template = PROMPTS.get(stage)
+    if not template:
+        raise ValueError(f"Unknown prompt stage: {stage}")
+    try:
+        return template.format(**kwargs)
+    except KeyError as e:
+        missing = e.args[0]
+        raise ValueError(f"Missing template variable '{missing}' for stage '{stage}'") from e
