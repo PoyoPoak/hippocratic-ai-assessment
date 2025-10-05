@@ -150,33 +150,34 @@ class StoryGenerator:
         except Exception as e:
             return f"Story generation failed: {e}"
 
+
 def safety_pass(text: str, run_audit: bool = True) -> str:
-    """Comprehensive safety filter for arbitrary text.""" 
-    # PII Scrub
-    text = scrubadub.clean(text)
-    text = text.lower()
-    
-    # Moderation check (may raise)
+    """Comprehensive safety filter; preserves original casing except for PII replacements."""
+    # Scrub PII but keep casing of remaining content
+    scrubbed = scrubadub.clean(text)
+    check = scrubbed.lower()
+
+    # Moderation (case-insensitive outcome)
     try:
-        llm.moderate(text)
+        llm.moderate(check)
     except ValueError as e:
         if "rejected" in str(e).lower():
             return "UNSAFE CONTENT BLOCKED"
     except Exception: # Fail open and move to other checks
         pass
 
-    # Blocklist substring scan
-    if any(word in text for word in config.FINAL_OUTPUT_BLOCKLIST):
-        return "UNSAFE CONTENT BLOCKED"
-    
-    # Profanity check
-    if profanity.contains_profanity(text):
+    # Blocklist (substring, case-insensitive)
+    if any(word in check for word in config.FINAL_OUTPUT_BLOCKLIST):
         return "UNSAFE CONTENT BLOCKED"
 
-    # Optional LLM audit
+    # Profanity check
+    if profanity.contains_profanity(check):
+        return "UNSAFE CONTENT BLOCKED"
+
+    # Optional LLM audit (send scrubbed but not lowercased to preserve semantics)
     if run_audit:
         try:
-            audit_prompt = config.build_prompt("safety_audit", story=text)
+            audit_prompt = config.build_prompt("safety_audit", story=scrubbed)
             audit_raw = llm.generate(
                 audit_prompt,
                 max_tokens=config.MAX_TOKENS["safety_audit"],
@@ -187,7 +188,7 @@ def safety_pass(text: str, run_audit: bool = True) -> str:
         except Exception: # Fail open and move to other checks
             pass
 
-    return text
+    return scrubbed
 
 
 def main():
