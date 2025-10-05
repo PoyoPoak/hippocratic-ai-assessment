@@ -3,14 +3,14 @@ import config
 import scrubadub
 from llm import LLM
 from better_profanity import profanity
+import unicodedata
+import re
 
 """
 Before submitting the assignment, describe here what you would build next with ~2 more hours. (Documented for reviewers.)
 """
 
 dotenv.load_dotenv()
-
-# Global LLM client instance
 llm = LLM()
 
 
@@ -43,12 +43,25 @@ class InputHandler:
             self.errors.append(f"Prompt improvement failed: {e}")
 
     def _clean(self, text: str) -> str:
-        """Normalize whitespace and strip surrounding spaces."""
-        text = text.replace("\r", "")
-        text = text.replace("\t", " ")
-        while "  " in text:
-            text = text.replace("  ", " ")
-        return text.strip()
+        """Robust normalization: Unicode fold, remove controls, collapse whitespace & punct, trim."""
+        s = unicodedata.normalize("NFKC", text)
+        
+        # Remove control chars except common whitespace
+        s = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", "", s)
+        
+        # Replace tabs/newlines/multiple spaces with single space
+        s = re.sub(r"\s+", " ", s)
+        
+        # Remove zero-width / directionality marks
+        s = re.sub(r"[\u200B-\u200F\u202A-\u202E\u2060-\u206F]", "", s)
+        
+        # Collapse excessive punctuation runs (!!!???) -> ! / ? / .
+        s = re.sub(r"([!?.]){2,}", r"\1", s)
+        
+        # Trim leading/trailing whitespace
+        s = s.strip()
+        
+        return s
 
     def _validate(self, prompt: str) -> bool:
         """Validate prompt length, semantics (gate), moderation, and injection patterns."""
