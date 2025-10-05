@@ -2,6 +2,7 @@ import os
 import random
 from typing import Optional
 import openai
+from nltk.stem.porter import PorterStemmer
 
 
 class LLM:
@@ -56,6 +57,13 @@ class LLM:
         # Retry if it's a known retryable error and we have attempts left
         return attempt < self._max_retries
 
+    def _stem_words(self, text: str) -> str:
+        """Stem words in the input text using Porter Stemmer to reduce token count."""
+        stemmer = PorterStemmer()
+        words = text.split()
+        stemmed_words = [stemmer.stem(word) for word in words]
+        return ' '.join(stemmed_words)
+
     def _moderate(self, text: str) -> None:
         """Run moderation check; raise if flagged or on error.
 
@@ -103,7 +111,7 @@ class LLM:
         """Public moderation method"""
         return self._moderate(text)
 
-    def generate(self, prompt: str, *, max_tokens: int = 3000, temperature: float = 0.7) -> str:
+    def generate(self, prompt: str, *, max_tokens: int = 3000, temperature: float = 0.7, stem: bool = False) -> str:
         """Generate text completion.
 
         Args:
@@ -121,6 +129,9 @@ class LLM:
             str: Generated text completion.
         """
         last_error: Exception | None = None
+        
+        if stem:
+            prompt = self._stem_words(prompt)
         
         for attempt in range(1, self._max_retries + 1):
             try:

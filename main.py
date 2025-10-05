@@ -101,6 +101,7 @@ class InputHandler:
             improve_prompt,
             max_tokens=config.MAX_TOKENS["improve"],
             temperature=config.TEMPERATURES["improve"],
+            stem=True
         )
     
     def get_prompt(self) -> str | None:
@@ -166,8 +167,8 @@ def safety_pass(text: str, run_audit: bool = True) -> str:
     except Exception: # Fail open and move to other checks
         pass
 
-    # Blocklist (substring, case-insensitive)
-    if any(word in check for word in config.FINAL_OUTPUT_BLOCKLIST):
+    # Custom Blocklist (substring, case-insensitive)
+    if any(word in check for word in config.BLOCKLIST):
         return "UNSAFE CONTENT BLOCKED"
 
     # Profanity check
@@ -182,6 +183,7 @@ def safety_pass(text: str, run_audit: bool = True) -> str:
                 audit_prompt,
                 max_tokens=config.MAX_TOKENS["safety_audit"],
                 temperature=config.TEMPERATURES["safety_audit"],
+                # stem=True # Could break semantics
             ).strip().upper()
             if audit_raw.startswith("UNSAFE"):
                 return "UNSAFE CONTENT BLOCKED"

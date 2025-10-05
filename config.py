@@ -7,17 +7,17 @@ TEMPERATURES = {
     "draft": 0.9,
     "critique": 0.3,
     "revise": 0.5,
-    "safety_audit": 0.0,   # Deterministic SAFE/UNSAFE classification
-    "safety_sanitize": 0.4, # (Currently unused) retained for potential future rewrite mode
+    "safety_audit": 0.0,     # Deterministic SAFE/UNSAFE classification
+    "safety_sanitize": 0.4,  # (Currently unused) retained for potential future rewrite mode
 }
 
 MAX_TOKENS = {
-    "gate": 16,          # Expect single token output
-    "improve": 250,      # Short refined prompt
-    "outline": 500,      # 5 bullets, multi-sentence
-    "draft": 3000,       # Full story first draft
-    "critique": 500,     # 3-5 critique bullets
-    "revise": 3000,      # Revised story
+    "gate": 16,              # Expect single token output
+    "improve": 250,          # Short refined prompt
+    "outline": 500,          # 5 bullets, multi-sentence
+    "draft": 3000,           # Full story first draft
+    "critique": 500,         # 3-5 critique bullets
+    "revise": 3000,          # Revised story
     "safety_audit": 32,      # Single short line (SAFE or UNSAFE)
     "safety_sanitize": 3000, # (Unused) placeholder
 }
@@ -33,7 +33,7 @@ INJECTION_PATTERNS = [
     "forget the rules"
 ]
 
-FINAL_OUTPUT_BLOCKLIST = [
+BLOCKLIST = [
     "blood",  
     "knife",  
     "gun",    
