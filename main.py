@@ -62,7 +62,6 @@ class InputHandler:
         
         # If there are local errors, skip LLM validation to save resources
         if self.errors:
-            print(f"Validation errors: {self.errors}")
             return False
 
         # LLM semantic validation (gate) - used to handle nuanced cases with LLM as a loose reasoning filter
@@ -151,50 +150,53 @@ class StoryGenerator:
             draft = self._run_stage("draft", outline=outline)
             critique = self._run_stage("critique", draft=draft)
             revised = self._run_stage("revise", draft=draft, critique=critique)
-            # safe_story = safety_pass(revised) # TODO convert final safety pass into a generic safety function
-            return revised
+            return safety_pass(revised)
         except Exception as e:
             return f"Story generation failed: {e}"
 
+def safety_pass(text: str, *, run_audit: bool = True) -> str:
+    """Comprehensive safety filter for arbitrary text.
 
-# def safety_pass(text: str) -> str:
-#     """Performs a safety check on a given piece of text"""
-#     lowered = text.lower()
+    Args:
+        text (str): Input text to be sanitized and checked for safety.
+        run_audit (bool, optional): Whether to run the optional LLM safety audit. Defaults to True.
+        *: All other parameters are keyword-only.
     
-#     # Length check
-#     # TODO Ensure input is at least config.MIN_INPUT_CHARS and at most config.MAX_INPUT_CHARS
+    Returns:
+        str: Sanitized text if safe, otherwise a generic blocked message.
+    """    
+    # PII Scrub
+    text = scrubadub.clean(text)
+    text = text.lower()
     
-#     # Scrub any personal identifiable information 
-#     # TODO Integrate scrubadub or similar library to remove PII
+    # Moderation check (may raise)
+    try:
+        openai_client.moderate(text)
+    except ValueError as e:
+        if "rejected" in str(e).lower():
+            return "UNSAFE CONTENT BLOCKED"
+    except Exception: # Fail open and move to other checks
+        pass
 
-#     # Moderation API check
-#     # TODO Implement call to OpenAI moderation endpoint and block if flagged
-    
-#     # Blocklist scan
-#     block_hit = any(word in lowered for word in config.FINAL_OUTPUT_BLOCKLIST)
+    # Blocklist substring scan
+    if any(word in text for word in config.FINAL_OUTPUT_BLOCKLIST):
+        return "UNSAFE CONTENT BLOCKED"
 
-#     # LLM audit
-#     if not block_hit:
-#         try:
-#             audit_prompt = build_prompt("safety_audit", story=text)
-#             audit_raw = openai_client.generate(
-#                 audit_prompt,
-#                 max_tokens=config.MAX_TOKENS["safety_audit"],
-#                 temperature=config.TEMPERATURES["safety_audit"],
-#             ).strip().upper()
-#             if audit_raw.startswith("UNSAFE"):
-#                 block_hit = True
-#             elif audit_raw.startswith("SAFE"):
-#                 pass 
-#             else:
-#                 # Ambiguous audit; allow (fail open) since no blocklist hit
-#                 return text
-#         except Exception:
-#             return text if not block_hit else "UNSAFE STORY BLOCKED"
+    # Optional LLM audit
+    if run_audit:
+        try:
+            audit_prompt = build_prompt("safety_audit", story=text)
+            audit_raw = openai_client.generate(
+                audit_prompt,
+                max_tokens=config.MAX_TOKENS["safety_audit"],
+                temperature=config.TEMPERATURES["safety_audit"],
+            ).strip().upper()
+            if audit_raw.startswith("UNSAFE"):
+                return "UNSAFE CONTENT BLOCKED"
+        except Exception: # Fail open and move to other checks
+            pass
 
-#     if block_hit:
-#         return "UNSAFE STORY BLOCKED"
-#     return text
+    return text
 
 
 def build_prompt(stage: str, **kwargs) -> str:
@@ -350,6 +352,9 @@ class OpenAI:
             raise last_error
         
         raise RuntimeError("Unknown generation error")
+
+    def moderate(self, text: str) -> None:
+        self._moderate(text)
 
 
 # Singleton client instance used by helper functions/classes above
